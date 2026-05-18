@@ -30,6 +30,11 @@ app-next/node_modules/
 app-next/.vercel
 app-next/*.tsbuildinfo
 
-# Temp / scratch
+# Temp / cache
 *.tmp
 .cache/
+
+# Static prototype kept locally as design reference only — not part of
+# the production app. Earlier commits (≤ 4f23f20) still contain it for
+# anyone who needs to retrieve via `git checkout 4f23f20 -- legacy/`.
+legacy/

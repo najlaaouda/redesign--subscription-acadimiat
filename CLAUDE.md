@@ -2,14 +2,21 @@
 
 Guide for Claude Code working on **أكاديميات (acadimiat.com)** — a Saudi SaaS pricing + B2B booking site (RTL Arabic, mobile-first, premium SaaS aesthetic inspired by Notion / Stripe / Thinkific). Target deployment: **Vercel**.
 
-## Repo overview — two codebases
+## Repo overview — production-only
 
-The repository is organised into **two clearly-separated codebases**:
+The repository contains **one production codebase**: `app-next/` — a Next.js 16 + React 19 + TypeScript + Tailwind v4 app. All new work happens there. This is what Vercel deploys.
 
-1. **`app-next/`** — **the production Next.js 16 + React 19 + TypeScript + Tailwind v4 app**. **All new work happens here.** This is what gets deployed to Vercel.
-2. **`legacy/`** — the **original static prototype, frozen as design reference**: `index.html`, `contact.html`, `appointment.html`, `styles.css`, `script.js`, plus the `assets/` and `fonts/` directories. Do not edit unless explicitly patching the legacy preview.
+The repo root is intentionally minimal: `app-next/`, `CLAUDE.md`, `.gitignore`. Vercel "Root Directory: `app-next/`" deploys cleanly.
 
-The repo root is intentionally minimal — only `CLAUDE.md`, `.gitignore`, and the two subdirectories above. This keeps the production root signal high and lets Vercel's "Root Directory: `app-next/`" setting deploy cleanly.
+### Legacy static prototype — local reference only
+
+The original static prototype (`index.html`, `contact.html`, `appointment.html`, `styles.css`, `script.js`, `assets/`, `fonts/`) is **kept as a local-only design reference** under `legacy/` in some contributors' working copies but is **not tracked by git** — `.gitignore` excludes the entire `legacy/` directory. The full prototype is preserved in the repo's git history up to commit `4f23f20`; anyone who needs to retrieve it can run:
+
+```bash
+git checkout 4f23f20 -- legacy/
+```
+
+Do not re-track the legacy directory. When porting an old behavior, copy it into a new component under `app-next/`, never edit the legacy files for production purposes.
 
 Day-to-day workflow:
 
