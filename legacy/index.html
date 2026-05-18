@@ -10,8 +10,8 @@
 
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <!-- Readex Pro — primary Arabic + Latin sans-serif -->
-  <link href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@300;400;500;600;700&display=swap"
+  <!-- IBM Plex Sans Arabic — primary Arabic + Latin sans-serif -->
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@300;400;500;600;700&display=swap"
     rel="stylesheet" />
   <!-- Saudi Riyal Symbol Font — official SAMA 2024 mark (U+20C1) -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@emran-alhaddad/saudi-riyal-font/index.css" />
@@ -40,7 +40,7 @@
             info: '#1565C0',
           },
           fontFamily: {
-            sans: ['"Readex Pro"', '"29LT Bukra"', '"IBM Plex Sans Arabic"', 'system-ui', 'sans-serif'],
+            sans: ['"IBM Plex Sans Arabic"', '"29LT Bukra"', '"Readex Pro"', 'system-ui', 'sans-serif'],
           },
           fontSize: {
             'h1': ['32px', { lineHeight: '1.25', fontWeight: '700' }],
@@ -209,7 +209,7 @@
             <!-- Hand-drawn annotation: text on visual RIGHT (top), curved arrow sweeps DOWN-LEFT to point at سنوي below (matches reference image). -->
             <div
               class="annotation pointer-events-none absolute bottom-full left-10 mb-1 flex items-start gap-1 select-none">
-              <span class="annotation-text text-heading text-h5 font-bold whitespace-nowrap pt-1">وفّر 20%</span>
+              <span class="annotation-text text-heading text-h5 font-bold whitespace-nowrap pt-1">وفّر 23%</span>
               <svg class="w-14 h-14 text-heading" viewBox="0 0 64 64" fill="none" stroke="currentColor"
                 stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <!-- Top-right → bottom-left, tip pointing DOWN at سنوي -->
@@ -394,7 +394,7 @@
                       class="w-[18px] h-[18px] text-heading/80 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor"
                       viewBox="0 0 24 24">
                       <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M5 13l4 4L19 7" />
-                    </svg>حتى 2,000 مشترك</li>
+                    </svg> 2,000 بالنشرة البريدية مشترك</li>
                   <li class="flex items-start gap-2.5"><svg
                       class="w-[18px] h-[18px] text-heading/80 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor"
                       viewBox="0 0 24 24">
@@ -500,11 +500,11 @@
               <li class="flex items-start gap-2.5"><svg class="w-[18px] h-[18px] text-heading/80 mt-0.5 flex-shrink-0"
                   fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M5 13l4 4L19 7" />
-                </svg>تكامل Zapier</li>
+                </svg>الربط مع Zapier</li>
               <li class="flex items-start gap-2.5"><svg class="w-[18px] h-[18px] text-heading/80 mt-0.5 flex-shrink-0"
                   fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M5 13l4 4L19 7" />
-                </svg>ربط بوابات الدفع (تاب، تمارا، Stripe، PayPal، Paymob)</li>
+                </svg>ربط بوابات الدفع (Tab, Tamara, Stripe، PayPal، Paymob)</li>
             </ul>
           </article>
 
@@ -1021,7 +1021,8 @@
 
       <!-- ── BLOCK 1: Add-on (Thinkific-inspired wide card) ── -->
       <article class="addon-card relative bg-[#F9F7FB] border-[1.5px] border-primary rounded-[24px] p-9 lg:p-12">
-        <span class="addon-card__label absolute -top-[14px] right-8 bg-white text-primary text-[13px] font-bold px-3 whitespace-nowrap">إضافات</span>
+        <span
+          class="addon-card__label absolute -top-[14px] right-8 bg-white text-primary text-[13px] font-bold px-3 whitespace-nowrap">إضافات</span>
 
         <div class="grid md:grid-cols-[1fr_1.25fr] gap-8 lg:gap-14 items-start pt-2">
           <!-- Right (RTL start): heading + description + CTA -->
@@ -1032,45 +1033,83 @@
             <p class="text-h4 text-black font-normal leading-relaxed mb-7">
               متاحة لمشتركي الباقات الأساسية (الانطلاقة، الاحترافية، المتقدمة)
             </p>
-            <a href="#" class="addon-card__cta inline-flex items-center justify-center bg-primary text-white text-h4 font-semibold px-7 py-3 rounded-xl hover:bg-primary-hover transition no-underline">احجز موعد</a>
+            <a href="#"
+              class="addon-card__cta inline-flex items-center justify-center bg-primary text-white text-h4 font-semibold px-7 py-3 rounded-xl hover:bg-primary-hover transition no-underline">احجز
+              موعد</a>
           </div>
 
           <!-- Left (RTL end): features list with purple checkmarks -->
           <ul class="addon-card__features grid grid-cols-1 md:grid-cols-2 gap-x-7 gap-y-3.5 list-none p-0 m-0">
             <li class="flex items-start gap-3 text-h5 text-heading">
-              <svg width="20" height="20" class="w-5 h-5 text-primary mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>
+              <svg width="20" height="20" class="w-5 h-5 text-primary mt-0.5 flex-shrink-0" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+                aria-hidden="true">
+                <path d="M5 13l4 4L19 7" />
+              </svg>
               <span>استبانات لقياس مستوى رضا المستفيدين</span>
             </li>
             <li class="flex items-start gap-3 text-h5 text-heading">
-              <svg width="20" height="20" class="w-5 h-5 text-primary mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>
+              <svg width="20" height="20" class="w-5 h-5 text-primary mt-0.5 flex-shrink-0" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+                aria-hidden="true">
+                <path d="M5 13l4 4L19 7" />
+              </svg>
               <span>دعم اللغتين العربية والإنجليزية</span>
             </li>
             <li class="flex items-start gap-3 text-h5 text-heading">
-              <svg width="20" height="20" class="w-5 h-5 text-primary mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>
+              <svg width="20" height="20" class="w-5 h-5 text-primary mt-0.5 flex-shrink-0" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+                aria-hidden="true">
+                <path d="M5 13l4 4L19 7" />
+              </svg>
               <span>نظام تذاكر لاستقبال الشكاوى والمقترحات</span>
             </li>
             <li class="flex items-start gap-3 text-h5 text-heading">
-              <svg width="20" height="20" class="w-5 h-5 text-primary mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>
+              <svg width="20" height="20" class="w-5 h-5 text-primary mt-0.5 flex-shrink-0" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+                aria-hidden="true">
+                <path d="M5 13l4 4L19 7" />
+              </svg>
               <span>فصول افتراضية مدمجة داخل المنصة</span>
             </li>
             <li class="flex items-start gap-3 text-h5 text-heading">
-              <svg width="20" height="20" class="w-5 h-5 text-primary mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>
+              <svg width="20" height="20" class="w-5 h-5 text-primary mt-0.5 flex-shrink-0" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+                aria-hidden="true">
+                <path d="M5 13l4 4L19 7" />
+              </svg>
               <span>نظام التحقق الآمن من هوية المستخدمين</span>
             </li>
             <li class="flex items-start gap-3 text-h5 text-heading">
-              <svg width="20" height="20" class="w-5 h-5 text-primary mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>
+              <svg width="20" height="20" class="w-5 h-5 text-primary mt-0.5 flex-shrink-0" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+                aria-hidden="true">
+                <path d="M5 13l4 4L19 7" />
+              </svg>
               <span>نظام تتبع تقدم المتدربين ونسب الإنجاز</span>
             </li>
             <li class="flex items-start gap-3 text-h5 text-heading">
-              <svg width="20" height="20" class="w-5 h-5 text-primary mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>
+              <svg width="20" height="20" class="w-5 h-5 text-primary mt-0.5 flex-shrink-0" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+                aria-hidden="true">
+                <path d="M5 13l4 4L19 7" />
+              </svg>
               <span>أدوات لكشف الاقتباس ومنع الغش في التكليفات</span>
             </li>
             <li class="flex items-start gap-3 text-h5 text-heading">
-              <svg width="20" height="20" class="w-5 h-5 text-primary mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>
+              <svg width="20" height="20" class="w-5 h-5 text-primary mt-0.5 flex-shrink-0" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+                aria-hidden="true">
+                <path d="M5 13l4 4L19 7" />
+              </svg>
               <span>دعم تسهيلات الوصول لذوي الإعاقة</span>
             </li>
             <li class="flex items-start gap-3 text-h5 text-heading">
-              <svg width="20" height="20" class="w-5 h-5 text-primary mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>
+              <svg width="20" height="20" class="w-5 h-5 text-primary mt-0.5 flex-shrink-0" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+                aria-hidden="true">
+                <path d="M5 13l4 4L19 7" />
+              </svg>
               <span>إنشاء قوالب برامج تدريبية متنوعة</span>
             </li>
           </ul>
@@ -1081,7 +1120,8 @@
       <p class="text-center text-h4 text-heading leading-relaxed pt-2">
         أكاديميات تقدم حلولاً مخصصة للشركات.
         <a href="contact.html" class="inline-block font-semibold no-underline transition"
-          style="border-bottom: 2px solid #6B3A8C; padding-bottom: 1px;"><span class="popular-text-gradient">تواصل معنا</span></a>
+          style="border-bottom: 2px solid #6B3A8C; padding-bottom: 1px;"><span class="popular-text-gradient">تواصل
+            معنا</span></a>
         للحصول على عرض سعر حسب احتياجك.
       </p>
 

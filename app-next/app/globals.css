@@ -1,0 +1,635 @@
+@import "tailwindcss";
+
+/* ════════════════════════════════════════════════════════════════
+   Design tokens — mirrors the original project's palette + scale.
+   Tailwind 4 reads CSS variables inside @theme automatically.
+   ════════════════════════════════════════════════════════════════ */
+@theme {
+  --color-primary: #6B3A8C;
+  --color-primary-hover: #5A2F77;
+  --color-primary-soft: #F4EDF8;
+  --color-secondary: #E056A7;
+  --color-secondary-soft: #FDF0F7;
+  --color-heading: #311A40;
+  --color-text-muted: #7C7282;
+  --color-border: #DFDCE0;
+  --color-warning: #F2C94C;
+  --color-success: #1F8A4C;
+  --color-error: #D23030;
+  --color-info: #1565C0;
+
+  /* Custom font scale (h1 … h5) */
+  --text-h1: 32px;
+  --text-h1--line-height: 1.25;
+  --text-h1--font-weight: 700;
+  --text-h2: 24px;
+  --text-h2--line-height: 1.35;
+  --text-h2--font-weight: 500;
+  --text-h3: 20px;
+  --text-h3--line-height: 1.4;
+  --text-h3--font-weight: 400;
+  --text-h4: 16px;
+  --text-h4--line-height: 1.5;
+  --text-h4--font-weight: 400;
+  --text-h5: 14px;
+  --text-h5--line-height: 1.5;
+  --text-h5--font-weight: 400;
+
+  /* Container width */
+  --container-container: 1200px;
+
+  /* Default sans = IBM Plex Sans Arabic (loaded via next/font as --font-plex) */
+  --font-sans: var(--font-plex), "29LT Bukra", system-ui, -apple-system, sans-serif;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Body base — Arabic-friendly font features, RTL-aware.
+   ════════════════════════════════════════════════════════════════ */
+body {
+  font-family: var(--font-sans);
+  font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color: var(--color-heading);
+  background: #ffffff;
+}
+
+html { scrollbar-gutter: stable; }
+
+/* ════════════════════════════════════════════════════════════════
+   Animated text gradient — "الأكثر طلباً" / "تواصل معنا" / hero accent.
+   ════════════════════════════════════════════════════════════════ */
+.popular-text-gradient {
+  background: linear-gradient(
+    90deg,
+    var(--color-primary) 0%,
+    var(--color-secondary) 50%,
+    var(--color-primary) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+  animation: popular-text-shift 3s linear infinite;
+}
+@keyframes popular-text-shift {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .popular-text-gradient { animation: none; }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Hero infinite-grid backdrop (used inside Hero + Contact pages).
+   ════════════════════════════════════════════════════════════════ */
+.hero-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+  -webkit-mask-image: linear-gradient(to bottom, black 0%, black 12%, transparent 28%);
+          mask-image: linear-gradient(to bottom, black 0%, black 12%, transparent 28%);
+}
+.grid-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.grid-layer--base { opacity: 0.20; }
+
+/* ════════════════════════════════════════════════════════════════
+   Segmented tab control — login & verify modals.
+
+   Premium SaaS pill-style toggle (Stripe / Shopify polish):
+   • Track: rounded 14px, light-gray fill with a hair-thin border
+   • Active: white pill, soft layered shadow + subtle 1px outline ring
+   • Inactive: muted-gray text with a feather-light hover-elevation
+   • Switch is animated with the standard material easing curve
+   ════════════════════════════════════════════════════════════════ */
+.login-method-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  background: #F2F2F4;
+  border: 1px solid #E5E7EB;
+  border-radius: 14px;
+}
+
+.login-method-tab {
+  appearance: none;
+  background: transparent;
+  border: 0;
+  outline: 0;
+  /* Pure inheritance so the IBM Plex Sans Arabic family applies. */
+  font: inherit;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: -0.005em;
+  color: var(--color-text-muted);
+  padding: 10px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  /* Stripe-ish ease — fast enough to feel snappy, slow enough to read. */
+  transition:
+    background-color 220ms cubic-bezier(0.4, 0, 0.2, 1),
+    color 220ms cubic-bezier(0.4, 0, 0.2, 1),
+    box-shadow 220ms cubic-bezier(0.4, 0, 0.2, 1),
+    transform 220ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Hover on the IDLE tab — slight elevation: text darkens + ghost-white
+   fill. Active tab ignores hover so it doesn't get re-styled. */
+.login-method-tab:not(.is-active):hover {
+  color: var(--color-heading);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.login-method-tab:not(.is-active):focus-visible {
+  color: var(--color-heading);
+  box-shadow: 0 0 0 2px rgba(107, 58, 140, 0.25);
+}
+
+/* Active pill — white surface, soft 2-layer shadow, hair outline ring */
+.login-method-tab.is-active {
+  background: #ffffff;
+  color: var(--color-heading);
+  font-weight: 600;
+  box-shadow:
+    0 1px 2px rgba(49, 26, 64, 0.08),
+    0 2px 6px -2px rgba(49, 26, 64, 0.06);
+  outline: 1px solid rgba(49, 26, 64, 0.04);
+}
+
+/* Micro-interaction — gentle scale-down on press for tactile feedback */
+.login-method-tab:active {
+  transform: scale(0.985);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-method-tab,
+  .login-method-tab:active {
+    transition: none;
+    transform: none;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Compare-table inline info tooltip.
+
+   Pure CSS — appears INSTANTLY on hover/focus, not after the
+   browser's native `title` delay. Anchored to the icon, bubble
+   sits above with a small arrow pointing down.
+   ════════════════════════════════════════════════════════════════ */
+.cmp-tip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  /* position: relative gives the bubble an anchor, but with NO z-index
+     it does NOT create a stacking context — so the icon stays in the
+     row's natural flow (hidden under the sticky tabs on scroll), while
+     the bubble inside is free to escape upward via its own high z-index. */
+  position: relative;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  margin: 0;
+  margin-inline-start: 6px;
+  vertical-align: middle;
+  cursor: help;
+  width: 16px;
+  height: 16px;
+  outline: 0;
+}
+.cmp-tip__icon {
+  width: 14px;
+  height: 14px;
+  color: var(--color-text-muted);
+  transition: color 0.15s ease;
+}
+.cmp-tip:hover .cmp-tip__icon,
+.cmp-tip:focus-visible .cmp-tip__icon { color: var(--color-primary); }
+
+.cmp-tip__bubble {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  /* Right-anchored in RTL so the bubble extends LEFT from the icon —
+     stops it from spilling past the right viewport edge on rows where
+     the icon sits near the right margin. */
+  inset-inline-end: -8px;
+  inset-inline-start: auto;
+  background: var(--color-heading);
+  color: #fff;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 400;
+  line-height: 1.6;
+  /* Multi-line so the full description reads as a tidy block. */
+  white-space: normal;
+  width: max-content;
+  max-width: 320px;
+  min-width: 220px;
+  text-align: start;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  /* High enough to win against the sticky cluster (z:30) in the same
+     parent stacking context. .cmp-tip itself has no z-index, so the
+     bubble's value is compared directly against sticky. */
+  z-index: 60;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.16);
+}
+.cmp-tip__bubble::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  /* Arrow sits where the icon is — at the end (right in RTL) of the
+     bubble, not centered, since the bubble is right-anchored. */
+  inset-inline-end: 12px;
+  inset-inline-start: auto;
+  border: 5px solid transparent;
+  border-top-color: var(--color-heading);
+}
+.cmp-tip:hover .cmp-tip__bubble,
+.cmp-tip:focus-visible .cmp-tip__bubble { opacity: 1; }
+
+@media (max-width: 480px) {
+  /* Shrink the bubble on small phones — don't overflow viewport. */
+  .cmp-tip__bubble { max-width: 260px; min-width: 200px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cmp-tip__icon,
+  .cmp-tip__bubble { transition: none; }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Button: color-only hover (project-wide convention — no lift).
+   ════════════════════════════════════════════════════════════════ */
+.btn-premium {
+  transition: filter 0.15s ease, background-color 0.15s ease;
+}
+.btn-premium:hover { filter: brightness(0.96); }
+.btn-premium:active { filter: brightness(0.92); }
+
+/* ════════════════════════════════════════════════════════════════
+   FAQ — dark theme, native <details> with chevron rotate-on-open.
+   Pure CSS — no JS handler needed.
+   ════════════════════════════════════════════════════════════════ */
+.faq-item-dark > summary::-webkit-details-marker { display: none; }
+.faq-item-dark > summary::marker { display: none; content: ""; }
+.faq-item-dark[open] .faq-chev { transform: rotate(-180deg); }
+
+/* ════════════════════════════════════════════════════════════════
+   Academy marquee — Swiper.js v11 with browser-mockup cards.
+   ════════════════════════════════════════════════════════════════ */
+.academy-marquee-wrap { position: relative; }
+.academy-swiper {
+  overflow: hidden;
+  padding-block: 12px 20px;
+  -webkit-mask-image: linear-gradient(to left, transparent 0, #000 5%, #000 95%, transparent 100%);
+          mask-image: linear-gradient(to left, transparent 0, #000 5%, #000 95%, transparent 100%);
+}
+/* Linear easing → constant-velocity marquee (not stepped) */
+.academy-swiper .swiper-wrapper { transition-timing-function: linear !important; }
+.academy-swiper .swiper-slide {
+  width: 320px;
+  height: auto;
+}
+@media (max-width: 768px) {
+  .academy-swiper .swiper-slide { width: 260px; }
+  .academy-swiper { padding-block: 8px 14px; }
+}
+
+.academy-card {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+}
+.academy-card__browser {
+  background: #fff;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow:
+    0 12px 30px -12px rgba(49, 26, 64, 0.18),
+    0 4px 10px -4px rgba(49, 26, 64, 0.10);
+  border: 1px solid #ECE9EF;
+  transition: box-shadow 0.25s ease, transform 0.25s ease;
+}
+.academy-card:hover .academy-card__browser {
+  box-shadow:
+    0 18px 40px -14px rgba(49, 26, 64, 0.26),
+    0 6px 14px -5px rgba(49, 26, 64, 0.14);
+}
+.academy-card__chrome {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  background: #FFFFFF;
+  border-bottom: 1px solid #F1ECF4;
+  direction: ltr;
+}
+.academy-card__url {
+  font-size: 12px;
+  font-weight: 500;
+  color: #6B6258;
+  font-family: "Inter", system-ui, sans-serif;
+  letter-spacing: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px;
+}
+.academy-card__dots { display: flex; gap: 6px; }
+.academy-card__dots .dot {
+  width: 11px;
+  height: 11px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.dot--red    { background: #FF5F57; }
+.dot--yellow { background: #FEBC2E; }
+.dot--green  { background: #28C840; }
+.academy-card__shot {
+  display: block;
+  width: 100%;
+  height: 230px;
+  object-fit: cover;
+  object-position: top center;
+}
+@media (max-width: 768px) {
+  .academy-card__shot { height: 190px; }
+}
+
+/* ════════════════════════════════════════════════════════════════
+   /appointment — booking page (calendar, time slots, summary)
+   ════════════════════════════════════════════════════════════════ */
+.appointment-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: var(--color-primary-soft);
+  border: 1px solid rgba(107, 58, 140, 0.18);
+  border-radius: 14px;
+  padding: 14px 16px;
+  max-width: 42rem;
+  margin-inline: auto;
+}
+.appointment-notice__icon {
+  color: var(--color-primary);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.appointment-notice p {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-heading);
+  font-weight: 500;
+}
+
+/* Calendar grid */
+.calendar-weekday {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 8px 0;
+}
+.calendar-day {
+  appearance: none;
+  border: 0;
+  outline: 0;
+  background: #F2F2F4;
+  color: var(--color-heading);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  font-family: inherit;
+  aspect-ratio: 1 / 1;
+  min-height: 44px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease, filter 0.15s ease;
+  padding: 0;
+}
+.calendar-day:hover:not(:disabled):not(.calendar-day--selected) {
+  filter: brightness(0.96);
+}
+.calendar-day--disabled {
+  background: transparent;
+  color: var(--color-text-muted);
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.calendar-day--empty {
+  background: transparent;
+  pointer-events: none;
+}
+.calendar-day--selected,
+.calendar-day--selected:hover {
+  background: var(--color-primary);
+  color: #fff;
+  filter: none;
+}
+
+/* Calendar nav arrows */
+.calendar-nav-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  color: var(--color-primary);
+  cursor: pointer;
+  transition: filter 0.15s ease, color 0.15s ease;
+}
+.calendar-nav-btn:hover:not(:disabled) { filter: brightness(0.96); }
+.calendar-nav-btn:active:not(:disabled) { filter: brightness(0.92); }
+.calendar-nav-btn:disabled,
+.calendar-nav-btn.is-disabled {
+  color: var(--color-text-muted);
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Legend swatch */
+.calendar-legend__swatch {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  background: #F2F2F4;
+  flex-shrink: 0;
+}
+
+/* Time slots */
+.time-slots-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 460px;
+  overflow-y: auto;
+  padding-inline-end: 4px;
+}
+.time-slot {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;            /* parent has max-height + overflow-y:auto;
+                                without this the slot collapses to ~14px */
+  min-height: 52px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+.time-slot__btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-heading);
+  text-align: start;
+  padding: 14px 18px;
+  flex: 1 1 auto;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.time-slot:hover:not(.is-selected) { background: #FAF7FC; }
+.time-slot.is-selected {
+  background: var(--color-primary-soft);
+  border-color: var(--color-primary);
+}
+.time-slot.is-selected .time-slot__btn {
+  color: var(--color-primary);
+  font-weight: 600;
+}
+.time-slot__next {
+  appearance: none;
+  border: 0;
+  background: var(--color-primary);
+  color: #fff;
+  font: inherit;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 0 24px;
+  cursor: pointer;
+  transition: filter 0.15s ease;
+  white-space: nowrap;
+}
+.time-slot__next:hover { filter: brightness(0.96); }
+.time-slot__next:active { filter: brightness(0.92); }
+
+/* 12h / 24h segmented toggle */
+.time-format-toggle {
+  display: inline-flex;
+  background: #F2F2F4;
+  border-radius: 999px;
+  padding: 4px;
+  gap: 2px;
+}
+.time-format-btn {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  padding: 6px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.time-format-btn.is-active {
+  background: #fff;
+  color: var(--color-heading);
+  box-shadow: 0 1px 2px rgba(49, 26, 64, 0.08);
+}
+
+/* Summary chips (form step) */
+.appointment-summary__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(107, 58, 140, 0.18);
+}
+
+/* Form inputs (scoped to .appt-input so they don't collide with .b2b-input) */
+.appt-input {
+  display: block;
+  width: 100%;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  font: inherit;
+  font-family: inherit;
+  font-size: 15px;
+  color: var(--color-heading);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.appt-input::placeholder { color: var(--color-text-muted); }
+.appt-input:focus {
+  outline: 0;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 4px rgba(107, 58, 140, 0.12);
+}
+
+/* Success state icon */
+.appointment-success__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 999px;
+  background: var(--color-primary-soft);
+  color: var(--color-primary);
+  margin: 0 auto;
+}
+
+@media (max-width: 640px) {
+  .calendar-day { min-height: 40px; font-size: 14px; border-radius: 8px; }
+  .calendar-weekday { font-size: 11px; }
+  .time-slot__btn { padding: 12px 14px; font-size: 14px; }
+  .time-slot__next { padding: 0 18px; font-size: 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .calendar-nav-btn,
+  .calendar-day,
+  .time-slot,
+  .time-slot__btn,
+  .time-slot__next,
+  .time-format-btn,
+  .appt-input { transition: none; }
+}

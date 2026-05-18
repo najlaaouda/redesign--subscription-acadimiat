@@ -4,7 +4,7 @@
     {
       "name": "pricing-preview",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["--yes", "serve", "-l", "3456", "."],
+      "runtimeArgs": ["--yes", "serve", "-l", "3456", "./legacy"],
       "port": 3456
     }
   ]

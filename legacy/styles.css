@@ -67,7 +67,7 @@ html {
 }
 
 body {
-  font-family: 'Readex Pro', '29LT Bukra', 'IBM Plex Sans Arabic', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: 'IBM Plex Sans Arabic', '29LT Bukra', 'Readex Pro', system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-feature-settings: 'kern' 1, 'liga' 1, 'calt' 1;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;

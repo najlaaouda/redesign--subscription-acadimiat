@@ -20,3 +20,16 @@ npm-debug.log*
 
 # Claude Code workspace (keep launch.json so MCP preview still works)
 .claude/settings.local.json
+.claude/worktrees/
+
+# Next.js build artifacts inside app-next/ (its own .gitignore covers
+# these too, but keeping them here makes the root-level rule explicit
+# for any tooling that scans only the top-level file).
+app-next/.next/
+app-next/node_modules/
+app-next/.vercel
+app-next/*.tsbuildinfo
+
+# Temp / scratch
+*.tmp
+.cache/

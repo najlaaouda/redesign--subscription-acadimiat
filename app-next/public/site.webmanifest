@@ -1,0 +1,14 @@
+{
+  "name": "أكاديميات",
+  "short_name": "أكاديميات",
+  "description": "منصّة سعودية متكاملة للدورات والمنتجات الرقمية",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#6B3A8C",
+  "lang": "ar-SA",
+  "dir": "rtl",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
