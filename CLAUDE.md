@@ -86,7 +86,7 @@ app-next/
 │   ├── ContactForm.tsx               # /contact 3-step form
 │   ├── CountUpStat.tsx               # Reusable stat with count-up
 │   └── modals/
-│       ├── AuthModal.tsx             # Signup → … → Thank-You → Onboarding (8 steps)
+│       ├── AuthModal.tsx             # Signup → … → Thank-You → Onboarding (7 steps)
 │       ├── LoginModal.tsx            # Email/phone + Passkey-first login
 │       └── BookingModal.tsx          # DEPRECATED — replaced by /appointment route
 │
@@ -280,9 +280,8 @@ const { billing, setBilling } = usePricing();
 |---|---|---|
 | `PricingCards` (main grid) | `$yearlyUsd` shown, with "**$yearlyTotalUsd** تدفع سنويًا" pill below | `$monthlyUsd` shown — **no pill** |
 | `CompareTable` sticky header | `$yearlyUsd / شهريًا` + small `$yearlyTotalUsd / سنويًا` line below | `$monthlyUsd / شهريًا` only |
-| `AuthModal` Trial step radio cards | Yearly: big `$yearlyTotalUsd` + sub `/ سنويًا ($yearlyUsd / شهريًا)` | Monthly: big `$monthlyUsd` + sub `/ شهريًا` |
-| `AuthModal` Payment renewal | `بقيمة $yearlyTotalUsd / سنويًا` | `بقيمة $monthlyUsd / شهريًا` |
-| `AuthModal` Thank-You renewal | Without addon: `بسعر $X / سنويًا`. **With addon ON**: `بسعر $X + $99 بإجمالي $(X+99) / سنويًا` (sum is dynamic) | Same pattern monthly |
+| `AuthModal` Checkout offer copy + summary | `الباقة {plan} السنوية بقيمة $yearlyTotalUsd` | `الباقة {plan} الشهرية بقيمة $monthlyUsd` |
+| `AuthModal` Thank-You renewal | `بسعر $X / سنويًا` on the renewal date from `getCheckoutSchedule()`. The $99 add-on is one-time — it is NOT added to the renewal; it pushes the renewal date out by 2 months | Same pattern monthly |
 
 ### Feature lists — `FeatureText` helper
 
@@ -303,16 +302,16 @@ openLogin()                              // dispatches "auth:open-login"
 
 The booking flow has its own dedicated route (`/appointment`) so it does **not** participate in this bus — there's no `openBooking` helper.
 
-### AuthModal — 8-step state machine
+### AuthModal — 7-step state machine
 
 Order:
 ```
-signup → email-otp → phone → phone-otp → trial → payment → thankyou → onboarding
+signup → email-otp → phone → phone-otp → trial (checkout) → thankyou → onboarding
 ```
 
 **Side paths**:
 - **SSO** (Google/Apple in `signup`) skips `email-otp` → `phone`.
-- **Payment "تخطى"** → jumps to `onboarding`.
+- **Checkout "تخطى"** → jumps to `onboarding`.
 - **Thank-You "لنجهّز منصتك"** → `onboarding`.
 - **Onboarding "إنهاء" / "تخطي الكل"** → closes modal + clears persisted state.
 
@@ -323,9 +322,9 @@ The modal's **max-width is dynamic per step**:
 | signup / email-otp / phone / phone-otp | `lg` |
 | thankyou | `md` |
 | onboarding | `2xl` |
-| trial / payment | `4xl` |
+| trial | `5xl` |
 
-Smooth `transition-[max-width] duration-300` between steps. **Overflow rule**: card has `overflow-hidden` only for trial/payment (sub-sections need clipped corners); other steps use `overflow-visible` so dropdowns / suggestions can extend past the card.
+Smooth `transition-[max-width] duration-300` between steps. **Overflow rule**: card has `overflow-hidden` only for trial (sub-sections need clipped corners); other steps use `overflow-visible` so dropdowns / suggestions can extend past the card.
 
 #### Signup — email field
 
@@ -357,15 +356,21 @@ Country chip opens a dropdown listbox with:
 
 Each country carries `phoneLen` + `placeholder`. Submit button enables when `digits.length === country.phoneLen`. **`isPhoneRegistered()`** mirrors the email path.
 
-#### Payment step
+#### Checkout step (`trial`) — offer + payment on one screen
+
+The old separate `trial` + `payment` screens were merged into `CheckoutStep` (persisted `step: "payment"` is mapped to `"trial"` on restore).
+
+- **LEFT column (RTL end)** — close chip + "تخطى" top-left; 2-line heading `جرّب مجانًا لمدة 3 أيام،` / `واستمتع بشهر كامل مقابل $1 فقط`; the 2-dot timeline (اليوم → trial-end $1) centred in the remaining height with a **"تغيير الباقة"** button under it (aligned with the dots column); then the one-time add-on block. Mobile: this column stacks first. "تغيير الباقة" opens `components/modals/PlanPickerModal.tsx` — full popup (z-80, Escape closes only it via capture-phase listener) with the 3 plan cards (bulleted features, select CTA) + a tabbed comparison table from `lib/compareTable.ts`. No yearly/monthly radio cards — `billing` has no UI here (defaults to `yearly`).
+- **Add-on block** — collapsible (header strip is a `<button aria-expanded>` with rotating chevron; open by default; pill shows "مضافة ✓" when on). Tinted `#FFF3C4` header strip ("خدمة إضافية — لمرة واحدة" + "+ شهرين مجاناً") over a white inner card: `ADDON_FEATURES` with black ✓ icons + scarcity line on one side, `$99` + `role="switch"` toggle row on the other.
+- **RIGHT column (RTL start)** — card fields, summary, CTA "اشترك الآن", then the renewal disclosure directly under the CTA (`سيتم تجديد اشتراكك تلقائيًا في الباقة {plan} {السنوية|الشهرية} بقيمة $X بتاريخ {renewDate}، بعد انتهاء الفترة الترويجية…`; amount + date bold black). Summary: اليوم — sub-lines `الباقة {plan} — اشتراك سنوي|شهري` + `لمدة شهر واحد فقط`; the selected subscription price (`yearlyTotalUsd` or `monthlyUsd`) struck through + `$1`; الخدمة الإضافية row always rendered (`$0` / `$99`) so toggling never changes modal height; الإجمالي.
+- **Schedule** — `getCheckoutSchedule(addonOn)`: `trialEnd = today + 3 days`; `renewDate = addMonths(trialEnd, 1 + (addonOn ? 2 : 0))`. Calendar months, clamped to month end (30 Jan + 1 → 28 Feb). Thank-You uses the same helper. Constants: `TRIAL_DAYS`, `ADDON_PRICE_USD`, `ADDON_BONUS_MONTHS`.
 
 - **Card-brand auto-detection** — `detectBrand()` returns `"visa"|"mastercard"|"amex"|"mada"|null` with **Mada BINs checked first** so Mada cards aren't miscategorised.
 - **Brand-aware formatting** — AmEx 15 digits chunked 4-6-5; others 16 digits chunked 4-4-4-4. `cardMaxLength(brand)` = 17 (AmEx) or 19 (others) including spaces.
 - **Brand-aware CVV** — 4 digits for AmEx, 3 otherwise.
 - **Expiry** — `formatExpiry()` clamps month 01–12, auto-pads single digit > 1.
-- **No validation blocks submit** — "ابدأ تجربتك بـ $1" always proceeds. Shape only (digits, lengths), no Luhn / real-card guarantee.
-- $99 add-on row at the bottom (cream gradient bg). Checkbox + label + price + "الأماكن محدودة: 10–15 عميل أسبوعياً" caveat.
-- Renewal disclosure text dynamically shows the right amount + cadence based on `billing`.
+- **No validation blocks submit** — the CTA always proceeds. Shape only (digits, lengths), no Luhn / real-card guarantee.
+- $99 add-on box (cream gradient, whole box is the checkbox label) + "+ شهرين مجاناً على اشتراكك" + "الأماكن محدودة: 10–15 عميل أسبوعياً" caveat.
 - `autoComplete` wires to native saved-card flow: `cc-number`, `cc-exp`, `cc-csc`.
 
 #### Onboarding step

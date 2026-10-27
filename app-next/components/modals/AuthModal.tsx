@@ -10,6 +10,7 @@ import {
   suggestEmailFix,
 } from "@/lib/email-suggest";
 import { COUNTRIES, DEFAULT_COUNTRY, type Country } from "@/lib/countries";
+import { PlanPickerModal } from "./PlanPickerModal";
 
 /**
  * Auth + checkout flow — one modal, multiple step screens.
@@ -18,16 +19,16 @@ import { COUNTRIES, DEFAULT_COUNTRY, type Country } from "@/lib/countries";
  *   email-otp    → 6-digit OTP from email (56×56 boxes, 44×44 mobile)
  *   phone        → mobile number with country prefix (LTR)
  *   phone-otp    → 6-digit OTP from SMS
- *   trial        → billing radio (yearly/monthly) + timeline (2-column)
- *   payment      → card form + timeline (2-column) + $99 add-on row
+ *   trial        → checkout (2-column): offer copy + billing radios +
+ *                  plan switcher | card form + one-time add-on + summary
  *   thankyou     → confetti + success + "لنجهّز منصتك"
  *   onboarding   → 3-screen academy-setup questionnaire (terminal step)
  *
- * Order: signup → email-otp → phone → phone-otp → trial → payment
+ * Order: signup → email-otp → phone → phone-otp → trial
  *        → thankyou → onboarding (final)
  *
  * Side paths:
- *   • Payment "تخطى" → jumps directly to onboarding.
+ *   • Checkout "تخطى" → jumps directly to onboarding.
  *   • Thank-You "لنجهّز منصتك" → onboarding.
  *   • Onboarding "إنهاء" / "تخطي الكل" → closes modal + clears persisted state.
  *
@@ -44,7 +45,6 @@ type Step =
   | "phone"
   | "phone-otp"
   | "trial"
-  | "payment"
   | "onboarding"
   | "thankyou";
 
@@ -58,8 +58,7 @@ const stepMaxW: Record<Step, string> = {
   "email-otp": "max-w-lg",
   phone: "max-w-lg",
   "phone-otp": "max-w-lg",
-  trial: "max-w-4xl",
-  payment: "max-w-4xl",
+  trial: "max-w-5xl",
   onboarding: "max-w-2xl",
   thankyou: "max-w-md",
 };
@@ -110,7 +109,9 @@ export function AuthModal() {
     const handler = (e: CustomEvent<OpenSignupDetail>) => {
       const saved = loadPersistedState();
       if (saved) {
-        if (saved.step) setStep(saved.step);
+        // "payment" was merged into "trial" — map old persisted state.
+        if (saved.step)
+          setStep((saved.step as string) === "payment" ? "trial" : saved.step);
         if (saved.email !== undefined) setEmail(saved.email);
         if (saved.phone !== undefined) setPhone(saved.phone);
         if (saved.countryCode) {
@@ -195,7 +196,7 @@ export function AuthModal() {
                add-on row) need their corners clipped. Simple text-only
                steps allow overflow so dropdowns (country picker, email
                suggest) can extend past the card. */
-            step === "trial" || step === "payment"
+            step === "trial"
               ? "overflow-hidden"
               : "overflow-visible"
           }`}
@@ -257,31 +258,16 @@ export function AuthModal() {
           )}
 
           {step === "trial" && (
-            <TrialStep
-              planName={plan.name}
-              yearlyMonthly={plan.yearlyUsd}
-              yearlyTotal={plan.yearlyTotalUsd}
-              monthly={plan.monthlyUsd}
+            <CheckoutStep
+              planId={plan.id}
+              setPlanId={setSelectedPlan}
               billing={billing}
-              setBilling={setBilling}
-              onSkip={close}
-              onContinue={() => setStep("payment")}
-            />
-          )}
-
-          {step === "payment" && (
-            <PaymentStep
-              planName={plan.name}
-              billing={billing}
-              renewalAmount={
-                billing === "yearly" ? plan.yearlyTotalUsd : plan.monthlyUsd
-              }
               addonOn={addonOn}
               setAddonOn={setAddonOn}
-              /* Skipping payment jumps straight to the academy-setup
+              /* Skipping checkout jumps straight to the academy-setup
                  questions instead of closing the flow. */
               onSkip={() => setStep("onboarding")}
-              onBack={() => setStep("trial")}
+              onClose={close}
               onContinue={() => setStep("thankyou")}
             />
           )}
@@ -331,233 +317,466 @@ export function AuthModal() {
 }
 
 /* ════════════════════════════════════════════════════════════════
-   Shared 2-column timeline used by Trial + Payment modals.
-   The timeline shows "today" → "trial-end + $1 charge" with a vertical
-   connector that's solid up to the active dot and faded past it.
+   Checkout schedule — single source for every date the flow shows.
+     today ── 3-day free trial ──► trialEnd ($1 charged, first month)
+           ── 1 month (+2 bonus months with the add-on) ──► renewDate
+   Months are calendar months (31 Jan + 1 month → 28/29 Feb, not 3 Mar).
    ════════════════════════════════════════════════════════════════ */
-function TrialTimeline() {
-  const trialEnd = new Date();
-  trialEnd.setDate(trialEnd.getDate() + 3);
-  const trialEndFmt = new Intl.DateTimeFormat("ar-SA-u-ca-gregory-nu-latn", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(trialEnd);
+const TRIAL_DAYS = 3;
+const ADDON_PRICE_USD = 99;
+const ADDON_BONUS_MONTHS = 2;
+const FIRST_MONTH_USD = 1;
+const ADDON_FEATURES = [
+  "دومين",
+  "هوية بصرية",
+  "أول كورس",
+  "صفحة هبوط",
+  "ربط الدفع",
+];
 
-  // CSS Grid lays out the dots in a dedicated 48px-wide column and the
-  // texts in the second column. The dot cells have fixed h-12 (48px), so
-  // the connector — absolute-positioned inside dot 1's cell with
-  // `top-12 h-12` — drops into the grid's `gap-y-12` (48px) and lands
-  // exactly at the top of dot 2, regardless of how tall the paragraph
-  // text in the adjacent column is. Bullet-proof against text reflow.
-  return (
-    <aside className="hidden md:flex md:flex-col md:justify-center p-8 lg:p-10 bg-white h-full">
-      <div className="grid grid-cols-[48px_1fr] items-start gap-x-4 gap-y-12">
-        {/* Row 1 — Dot 1 (active) */}
-        <div className="relative w-12 h-12">
-          <span className="block w-full h-full rounded-full bg-primary text-white shadow-sm flex items-center justify-center">
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-          </span>
-          <span
-            className="absolute right-[23px] top-12 w-[2px] h-12"
-            style={{
-              background:
-                "linear-gradient(to bottom, var(--color-primary) 50%, rgba(107,58,140,0.2) 50%)",
-            }}
-            aria-hidden="true"
-          />
-        </div>
-        {/* Row 1 — Text */}
-        <div className="pt-1">
-          <span className="inline-block bg-white border border-[#DFDCE0] text-h5 text-heading font-medium rounded-full px-3 py-1 mb-2">
-            اليوم
-          </span>
-          <p className="text-h5 text-heading leading-relaxed">
-            ستبدأ فترتك المجانية لمدّة 3 أيام
-          </p>
-        </div>
+const longDateFmt = new Intl.DateTimeFormat("ar-SA-u-ca-gregory-nu-latn", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
 
-        {/* Row 2 — Dot 2 (future) */}
-        <div className="w-12 h-12">
-          <span className="block w-full h-full rounded-full bg-white border-2 border-primary/30 text-primary flex items-center justify-center">
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-              <rect x="3" y="5" width="18" height="16" rx="2" />
-              <path d="M16 3v4M8 3v4M3 11h18" />
-            </svg>
-          </span>
-        </div>
-        {/* Row 2 — Text */}
-        <div className="pt-1">
-          <span className="inline-block bg-white border border-[#DFDCE0] text-h5 text-heading font-medium rounded-full px-3 py-1 mb-2">
-            {trialEndFmt}
-          </span>
-          <p className="text-h5 text-heading leading-relaxed">
-            سيبدأ اشتراكك بـ <span dir="ltr" className="font-bold">$1</span> لأول شهر — يمكنك الإلغاء في أي وقت
-          </p>
-        </div>
-      </div>
-    </aside>
-  );
+function addMonths(date: Date, months: number): Date {
+  const d = new Date(date);
+  const day = d.getDate();
+  d.setDate(1);
+  d.setMonth(d.getMonth() + months);
+  const lastDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+  d.setDate(Math.min(day, lastDay));
+  return d;
+}
+
+function getCheckoutSchedule(addonOn: boolean) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const trialEnd = new Date(today);
+  trialEnd.setDate(trialEnd.getDate() + TRIAL_DAYS);
+  const renewDate = addMonths(trialEnd, 1 + (addonOn ? ADDON_BONUS_MONTHS : 0));
+  return { trialEnd, renewDate };
 }
 
 /* ════════════════════════════════════════════════════════════════
-   Trial step — 2-column: pricing radios right, timeline left
+   Checkout step — 2-column, one screen:
+     • LEFT  (RTL end)   — offer copy + timeline dots + "تغيير الباقة"
+     • RIGHT (RTL start) — card fields + one-time add-on + summary + CTA
+   On mobile the offer column stacks first, payment below it.
    ════════════════════════════════════════════════════════════════ */
-function TrialStep({
-  planName,
-  yearlyMonthly,
-  yearlyTotal,
-  monthly,
+function CheckoutStep({
+  planId,
+  setPlanId,
   billing,
-  setBilling,
+  addonOn,
+  setAddonOn,
   onSkip,
+  onClose,
   onContinue,
 }: {
-  planName: string;
-  yearlyMonthly: number;
-  yearlyTotal: number;
-  monthly: number;
+  planId: PlanId;
+  setPlanId: (id: PlanId) => void;
   billing: "yearly" | "monthly";
-  setBilling: (b: "yearly" | "monthly") => void;
+  addonOn: boolean;
+  setAddonOn: (v: boolean) => void;
   onSkip: () => void;
+  onClose: () => void;
   onContinue: () => void;
 }) {
-  const trialEnd = new Date();
-  trialEnd.setDate(trialEnd.getDate() + 3);
-  const trialEndFmt = new Intl.DateTimeFormat("ar-SA-u-ca-gregory-nu-latn", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(trialEnd);
+  const [card, setCard] = useState("");
+  const [exp, setExp] = useState("");
+  const [cvv, setCvv] = useState("");
+  const [planPickerOpen, setPlanPickerOpen] = useState(false);
+  const [addonExpanded, setAddonExpanded] = useState(true);
+  const brand = detectBrand(card);
+
+  const plan = PLANS.find((p) => p.id === planId) ?? PLANS[1];
+  const renewalAmount =
+    billing === "yearly" ? plan.yearlyTotalUsd : plan.monthlyUsd;
+  const { trialEnd, renewDate } = getCheckoutSchedule(addonOn);
+  const trialEndFmt = longDateFmt.format(trialEnd);
+  const renewFmt = longDateFmt.format(renewDate);
+  const todayTotal = FIRST_MONTH_USD + (addonOn ? ADDON_PRICE_USD : 0);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-[1fr_1.1fr]">
-      {/* LEFT (RTL end) — timeline */}
-      <div className="md:order-2 relative md:h-full">
+    <>
+    <div className="grid grid-cols-1 md:grid-cols-2">
+      {/* LEFT (RTL end) — offer + timeline */}
+      <aside className="order-1 md:order-2 relative flex flex-col p-7 sm:p-9 lg:p-10 pt-16 sm:pt-16 lg:pt-16 bg-[#FAFAFB] md:border-s border-b md:border-b-0 border-[#DFDCE0]">
+        <CloseChip onClick={onClose} />
         <button
           type="button"
           onClick={onSkip}
-          className="absolute top-5 left-6 z-10 text-h5 text-text-muted hover:text-heading underline underline-offset-4 cursor-pointer transition"
+          className="absolute top-6 left-16 z-10 text-h5 text-text-muted hover:text-heading underline underline-offset-4 cursor-pointer transition"
         >
           تخطى
         </button>
-        <TrialTimeline />
-      </div>
 
-      {/* RIGHT (RTL start) — pricing */}
-      <section className="md:order-1 p-7 sm:p-9 lg:p-10 bg-white relative">
         <h2
           id="auth-title"
-          className="text-h2 font-bold text-heading text-start mb-6 pt-2"
+          className="text-h2 font-bold text-heading leading-snug mb-4"
         >
-          جرّب خطة <span className="text-primary">{planName}</span> مجاناً
+          <span className="block">
+            جرّب مجانًا لمدة <span dir="ltr">3</span> أيام،
+          </span>
+          <span className="block">
+            واستمتع بشهر كامل مقابل{" "}
+            <span dir="ltr" className="text-primary">$1</span> فقط
+          </span>
         </h2>
+        {/* Timeline centred in the remaining height with "تغيير الباقة"
+            under it. Both share one w-fit column so the button stays
+            aligned with the dots. The add-on block follows below. */}
+        <div className="flex-1 flex justify-center pt-8">
+          <div className="w-fit max-w-full flex flex-col">
+            <div className="flex-1 flex items-center pb-8">
+            {/* Dots live in a fixed 48px column; the connector sits inside
+                dot 1's cell with `top-12 h-12` so it drops into the 48px
+                row gap and lands on dot 2 however the text wraps. */}
+            <div className="grid grid-cols-[48px_1fr] items-start gap-x-4 gap-y-12">
+              <div className="relative w-12 h-12">
+                <span className="block w-full h-full rounded-full bg-primary text-white shadow-sm flex items-center justify-center">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </span>
+                <span
+                  className="absolute right-[23px] top-12 w-[2px] h-12"
+                  style={{
+                    background:
+                      "linear-gradient(to bottom, var(--color-primary) 50%, rgba(107,58,140,0.2) 50%)",
+                  }}
+                  aria-hidden="true"
+                />
+              </div>
+              <div className="pt-1">
+                <span className="inline-block bg-white border border-[#DFDCE0] text-h5 text-heading font-medium rounded-full px-3 py-1 mb-2">
+                  اليوم
+                </span>
+                <p className="text-h5 text-heading leading-relaxed">
+                  ستبدأ فترتك المجانية لمدّة <span dir="ltr">3</span> أيام
+                </p>
+              </div>
 
-        {/* Radio cards — yearly shows the annual TOTAL big with the
-            per-month equivalent in the sub-label. Monthly shows the
-            single monthly price. Switching updates everything live
-            because billing is a React state. */}
-        <div className="space-y-3" role="radiogroup" aria-label="اختر نوع الفوترة">
-          <RadioCard
-            selected={billing === "yearly"}
-            onClick={() => setBilling("yearly")}
-            label="سنوي"
-            price={`$${yearlyTotal.toLocaleString("en-US")}`}
-            sub={`/ سنويًا  ($${yearlyMonthly} / شهريًا)`}
-          />
-          <RadioCard
-            selected={billing === "monthly"}
-            onClick={() => setBilling("monthly")}
-            label="شهري"
-            price={`$${monthly}`}
-            sub="/ شهريًا"
-          />
+              <div className="w-12 h-12">
+                <span className="block w-full h-full rounded-full bg-white border-2 border-primary/30 text-primary flex items-center justify-center">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+                    <rect x="3" y="5" width="18" height="16" rx="2" />
+                    <path d="M16 3v4M8 3v4M3 11h18" />
+                  </svg>
+                </span>
+              </div>
+              <div className="pt-1">
+                <span className="inline-block whitespace-nowrap bg-white border border-[#DFDCE0] text-h5 text-heading font-medium rounded-full px-3 py-1 mb-2">
+                  {trialEndFmt}
+                </span>
+                <p className="text-h5 text-heading leading-relaxed">
+                  سيبدأ اشتراكك بـ <span dir="ltr" className="font-bold">$1</span> لأول شهر — يمكنك الإلغاء في أي وقت
+                </p>
+              </div>
+            </div>
+            </div>
+
+            {/* Aligned with the dots column (inline-start = right in RTL). */}
+            <div className="flex justify-start">
+              <button
+                type="button"
+                onClick={() => setPlanPickerOpen(true)}
+                aria-haspopup="dialog"
+                className="inline-flex items-center gap-1.5 text-h5 font-medium text-primary border border-primary/30 rounded-lg px-3 py-1.5 hover:bg-primary-soft cursor-pointer transition"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M7 16V4M7 4L3 8M7 4l4 4M17 8v12M17 20l4-4M17 20l-4-4" />
+                </svg>
+                تغيير الباقة
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Summary box */}
-        <div className="mt-5 rounded-xl border border-[#DFDCE0] bg-[#FAFAFB] p-4">
-          <div className="flex justify-between items-center gap-3">
-            <span className="text-heading text-h5 font-medium">
-              سيتم الخصم في {trialEndFmt}
+        {/* One-time add-on — collapsible: tinted header strip (click to
+            toggle, chevron rotates) over a white inner card
+            (info | price + switch). Adds ADDON_BONUS_MONTHS to the
+            subscription, which pushes the auto-renewal date out. */}
+        <div className="mt-6 rounded-2xl bg-[#FFF3C4] border border-[#F1E3B5] overflow-hidden">
+          <button
+            type="button"
+            onClick={() => setAddonExpanded((v) => !v)}
+            aria-expanded={addonExpanded}
+            aria-controls="addon-body"
+            className="w-full flex items-center justify-between gap-2 px-4 py-2.5 cursor-pointer text-start hover:bg-[#FFEDB0] transition"
+          >
+            <span className="inline-flex items-center gap-1.5 text-h5 font-semibold text-[#8A6800]">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+                <path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
+              </svg>
+              خدمة إضافية — لمرة واحدة
             </span>
-            <span className="text-heading font-semibold" dir="ltr">$1</span>
+            <span className="inline-flex items-center gap-2">
+              <span className="text-[12px] font-semibold text-[#8A6800] bg-white/70 rounded-full px-2.5 py-0.5">
+                {addonOn ? "مضافة ✓" : "+ شهرين مجاناً"}
+              </span>
+              <svg
+                className={`w-4 h-4 text-[#8A6800] transition-transform motion-reduce:transition-none ${
+                  addonExpanded ? "rotate-180" : ""
+                }`}
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2.2}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </span>
+          </button>
+
+          {addonExpanded && (
+          <div id="addon-body" className="bg-white rounded-2xl border-t border-[#F1E3B5] p-4 grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-4">
+            {/* Info */}
+            <div>
+              <h4 className="text-h4 font-bold text-heading mb-2.5">
+                بناء وتجهيز أكاديميتك كاملة
+              </h4>
+              <ul className="grid grid-cols-2 gap-x-3 gap-y-1.5 mb-3">
+                {ADDON_FEATURES.map((f) => (
+                  <li key={f} className="flex items-center gap-2 text-h5 text-heading">
+                    <svg className="w-4 h-4 text-black shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M5 13l4 4L19 7" />
+                    </svg>
+                    {f}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-[12px] font-semibold text-secondary">
+                الأماكن محدودة: <span dir="ltr">10–15</span> عميل أسبوعياً
+              </p>
+            </div>
+
+            {/* Price + switch */}
+            <div className="flex flex-col items-center justify-center gap-2.5 sm:border-s sm:border-[#F1E3B5] sm:ps-4 border-t sm:border-t-0 border-[#F1E3B5] pt-4 sm:pt-0">
+              <div className="text-center">
+                <span dir="ltr" className="block text-h1 font-bold text-[#A87F00] leading-none">
+                  ${ADDON_PRICE_USD}
+                </span>
+                <span className="text-[12px] text-text-muted">لمرة واحدة</span>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={addonOn}
+                onClick={() => setAddonOn(!addonOn)}
+                className={`w-full min-w-[150px] flex items-center justify-between gap-3 rounded-xl border-[1.5px] px-3 py-2 cursor-pointer transition ${
+                  addonOn
+                    ? "border-[#E5C870] bg-[#FFFCEC]"
+                    : "border-[#DFDCE0] bg-white hover:bg-[#FFFCEC]"
+                }`}
+              >
+                <span className="text-h5 font-semibold text-heading">أضف الخدمة</span>
+                <span
+                  className={`relative w-10 h-6 rounded-full shrink-0 transition-colors motion-reduce:transition-none ${
+                    addonOn ? "bg-[#E5B53A]" : "bg-[#DFDCE0]"
+                  }`}
+                  aria-hidden="true"
+                >
+                  <span
+                    className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm ${
+                      addonOn ? "end-0.5" : "start-0.5"
+                    }`}
+                  />
+                </span>
+              </button>
+            </div>
           </div>
-          <div className="border-t border-[#DFDCE0] my-3" />
-          <div className="flex justify-between items-center gap-3">
-            <span className="text-heading font-medium">اليوم</span>
-            <span className="text-success font-semibold">مجاناً</span>
+          )}
+        </div>
+      </aside>
+
+      {/* RIGHT (RTL start) — payment */}
+      <section className="order-2 md:order-1 p-7 sm:p-9 lg:p-10 bg-white">
+        <h3 className="text-h3 font-bold text-heading mb-3">الدفع</h3>
+
+        <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
+          <span className="inline-flex items-center gap-1.5 text-h5 text-text-muted">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
+              <rect x="4" y="10" width="16" height="10" rx="2" />
+              <path d="M8 10V7a4 4 0 1 1 8 0v3" strokeLinecap="round" />
+            </svg>
+            بياناتك مشفّرة بالكامل
+          </span>
+          <div className="flex items-center gap-2">
+            {/* eslint-disable @next/next/no-img-element */}
+            <img src="/assets/Mada.png" alt="Mada" width={36} height={24} className="h-6 w-auto object-contain" />
+            <img src="/assets/express.png" alt="American Express" width={36} height={24} className="h-6 w-auto object-contain" />
+            <img src="/assets/Mastercard.png" alt="Mastercard" width={36} height={24} className="h-6 w-auto object-contain" />
+            <img src="/assets/visa.png" alt="Visa" width={36} height={24} className="h-6 w-auto object-contain" />
+            {/* eslint-enable @next/next/no-img-element */}
           </div>
         </div>
+
+        {/* Card number — brand icon on the RIGHT (RTL start), label LEFT. */}
+        <div className="float-input relative h-[56px] bg-white border-[1.5px] border-[#DFDCE0] focus-within:border-primary rounded-xl mb-3">
+          <input
+            id="card-number"
+            type="text"
+            inputMode="numeric"
+            autoComplete="cc-number"
+            dir="ltr"
+            placeholder=" "
+            value={card}
+            onChange={(e) => setCard(formatCardNumber(e.target.value))}
+            maxLength={cardMaxLength(brand)}
+            className="peer w-full h-full bg-transparent text-h4 text-heading pt-5 pb-1 ps-4 pe-14 outline-none rounded-xl font-mono tracking-wider"
+          />
+          <label
+            htmlFor="card-number"
+            className="absolute left-4 top-1/2 -translate-y-1/2 text-h5 text-text-muted pointer-events-none transition-all
+              peer-focus:top-2 peer-focus:translate-y-0 peer-focus:text-[11px] peer-focus:text-primary peer-focus:font-medium
+              peer-[:not(:placeholder-shown)]:top-2 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[11px] peer-[:not(:placeholder-shown)]:text-primary peer-[:not(:placeholder-shown)]:font-medium"
+          >
+            رقم البطاقة
+          </label>
+          <span className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
+            {brand ? <CardBrandIcon brand={brand} /> : <CreditCardIcon />}
+          </span>
+        </div>
+
+        {/* Expiry + CVV */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="float-input relative h-[56px] bg-white border-[1.5px] border-[#DFDCE0] focus-within:border-primary rounded-xl">
+            <input
+              id="card-exp"
+              type="text"
+              inputMode="numeric"
+              autoComplete="cc-exp"
+              dir="ltr"
+              placeholder=" "
+              value={exp}
+              onChange={(e) => setExp(formatExpiry(e.target.value))}
+              maxLength={5}
+              className="peer w-full h-full bg-transparent text-h4 text-heading pt-5 pb-1 px-4 outline-none rounded-xl"
+            />
+            <label
+              htmlFor="card-exp"
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-h5 text-text-muted pointer-events-none transition-all
+                peer-focus:top-2 peer-focus:translate-y-0 peer-focus:text-[11px] peer-focus:text-primary peer-focus:font-medium
+                peer-[:not(:placeholder-shown)]:top-2 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[11px] peer-[:not(:placeholder-shown)]:text-primary peer-[:not(:placeholder-shown)]:font-medium"
+            >
+              تاريخ الانتهاء
+            </label>
+          </div>
+          <div className="float-input relative h-[56px] bg-white border-[1.5px] border-[#DFDCE0] focus-within:border-primary rounded-xl">
+            <input
+              id="card-cvv"
+              type="text"
+              inputMode="numeric"
+              autoComplete="cc-csc"
+              dir="ltr"
+              placeholder=" "
+              value={cvv}
+              onChange={(e) =>
+                setCvv(e.target.value.replace(/\D/g, "").slice(0, cvvMaxLength(brand)))
+              }
+              maxLength={cvvMaxLength(brand)}
+              className="peer w-full h-full bg-transparent text-h4 text-heading pt-5 pb-1 px-4 outline-none rounded-xl"
+            />
+            <label
+              htmlFor="card-cvv"
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-h5 text-text-muted pointer-events-none transition-all
+                peer-focus:top-2 peer-focus:translate-y-0 peer-focus:text-[11px] peer-focus:text-primary peer-focus:font-medium
+                peer-[:not(:placeholder-shown)]:top-2 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[11px] peer-[:not(:placeholder-shown)]:text-primary peer-[:not(:placeholder-shown)]:font-medium"
+            >
+              كود التحقّق
+            </label>
+          </div>
+        </div>
+
+        {/* Charge summary — billed today. */}
+        <dl className="mt-5 rounded-xl border border-[#DFDCE0] bg-[#FAFAFB] p-4 space-y-3 text-h5">
+          <div className="flex justify-between items-start gap-3">
+            <dt>
+              <span className="block text-heading font-medium">اليوم</span>
+              <span className="block text-[12px] text-text-muted">
+                الباقة {plan.name} — اشتراك{" "}
+                {billing === "yearly" ? "سنوي" : "شهري"}
+              </span>
+            </dt>
+            {/* Selected subscription price (yearly total / monthly) struck
+                through, promo $1 beside it; caveat underneath. */}
+            <dd className="flex flex-col items-end">
+              <span className="flex items-baseline gap-2" dir="ltr">
+                <s className="text-text-muted">
+                  ${renewalAmount.toLocaleString("en-US")}
+                </s>
+                <span className="text-heading font-semibold">${FIRST_MONTH_USD}</span>
+              </span>
+              <span className="text-[12px] text-text-muted">لمدة شهر واحد فقط</span>
+            </dd>
+          </div>
+          {/* Always rendered so toggling the add-on never changes the
+              modal height — only the values swap. */}
+          <div className="flex justify-between items-start gap-3">
+            <dt className={`font-medium ${addonOn ? "text-heading" : "text-text-muted"}`}>
+              الخدمة الإضافية
+            </dt>
+            <dd className="flex flex-col items-end">
+              <span
+                className={addonOn ? "text-heading font-semibold" : "text-text-muted"}
+                dir="ltr"
+              >
+                {addonOn ? `$${ADDON_PRICE_USD}` : "$0"}
+              </span>
+              <span className="text-[12px] text-text-muted">
+                {addonOn ? "لمرة واحدة" : "غير مضافة"}
+              </span>
+            </dd>
+          </div>
+          <div className="border-t border-[#DFDCE0]" />
+          <div className="flex justify-between items-center gap-3">
+            <dt className="text-h4 text-heading font-bold">الإجمالي</dt>
+            <dd className="text-h3 text-heading font-bold" dir="ltr">${todayTotal}</dd>
+          </div>
+        </dl>
 
         <button
           type="button"
           onClick={onContinue}
           className="w-full h-[52px] mt-5 bg-primary text-white text-h4 font-medium rounded-xl hover:bg-primary-hover cursor-pointer transition btn-premium"
         >
-          التالي
+          اشترك الآن
         </button>
 
-        {/* Trust rows */}
-        <ul className="mt-5 space-y-2.5 text-text-muted text-h5">
-          <li className="flex items-center gap-2">
-            <CheckSm /> جرّب 3 أيام مجاناً بدون بطاقة بنكية
-          </li>
-          <li className="flex items-center gap-2">
-            <CheckSm /> يمكنك الإلغاء في أي وقت
-          </li>
-        </ul>
+        {/* Auto-renewal disclosure — directly under the CTA. Body copy in
+            black; amount + date heavier. */}
+        <p className="text-h5 text-black/75 leading-relaxed mt-3">
+          سيتم تجديد اشتراكك تلقائيًا في الباقة {plan.name}{" "}
+          {billing === "yearly" ? "السنوية" : "الشهرية"} بقيمة{" "}
+          <strong dir="ltr" className="font-bold text-black">
+            ${renewalAmount.toLocaleString("en-US")}
+          </strong>{" "}
+          بتاريخ <strong className="font-bold text-black whitespace-nowrap">{renewFmt}</strong>،
+          بعد انتهاء الفترة الترويجية. ويمكنك إلغاء اشتراكك في أي وقت.
+        </p>
       </section>
     </div>
+
+    <PlanPickerModal
+      open={planPickerOpen}
+      currentPlan={planId}
+      billing={billing}
+      onSelect={(id) => {
+        setPlanId(id);
+        setPlanPickerOpen(false);
+      }}
+      onClose={() => setPlanPickerOpen(false)}
+    />
+    </>
   );
 }
 
-function RadioCard({
-  selected,
-  onClick,
-  label,
-  price,
-  sub,
-}: {
-  selected: boolean;
-  onClick: () => void;
-  label: string;
-  price: string;
-  sub: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      role="radio"
-      aria-checked={selected}
-      className={`w-full flex items-center justify-between gap-3 p-4 rounded-xl border-2 cursor-pointer transition text-start ${
-        selected
-          ? "bg-primary-soft border-primary"
-          : "bg-white border-[#DFDCE0] hover:border-primary/40"
-      }`}
-    >
-      <span className="flex flex-col items-start gap-1">
-        <span className={`text-h5 font-semibold ${selected ? "text-primary" : "text-heading"}`}>
-          {label}
-        </span>
-        <span className="text-h4 text-heading">
-          <strong dir="ltr" className="font-bold">{price}</strong>{" "}
-          <span className="text-text-muted text-h5">{sub}</span>
-        </span>
-      </span>
-      <span
-        className={`shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-          selected ? "border-primary bg-primary" : "border-[#DFDCE0]"
-        }`}
-        aria-hidden="true"
-      >
-        {selected && <span className="w-2 h-2 rounded-full bg-white" />}
-      </span>
-    </button>
-  );
-}
 
 function CheckSm() {
   return (
@@ -1105,7 +1324,7 @@ function PhoneStep({
 }
 
 /* ════════════════════════════════════════════════════════════════
-   Payment step — 2-column (form + timeline) + $99 add-on row
+   Card helpers — brand detection + input formatting (checkout step)
    ════════════════════════════════════════════════════════════════ */
 type CardBrand = "visa" | "mastercard" | "amex" | "mada" | null;
 function detectBrand(number: string): CardBrand {
@@ -1171,248 +1390,6 @@ function formatExpiry(raw: string): string {
 
   if (digits.length <= 2) return mm;
   return `${mm}/${digits.slice(2)}`;
-}
-
-function PaymentStep({
-  planName,
-  billing,
-  renewalAmount,
-  addonOn,
-  setAddonOn,
-  onSkip,
-  onBack,
-  onContinue,
-}: {
-  planName: string;
-  billing: "yearly" | "monthly";
-  /** The post-trial subscription price for the chosen billing cycle.
-   *  yearly → annual total ($1,188), monthly → per-month ($129). */
-  renewalAmount: number;
-  addonOn: boolean;
-  setAddonOn: (v: boolean) => void;
-  onSkip: () => void;
-  onBack: () => void;
-  onContinue: () => void;
-}) {
-  const [card, setCard] = useState("");
-  const [exp, setExp] = useState("");
-  const [cvv, setCvv] = useState("");
-  const brand = detectBrand(card);
-
-  const trialEnd = new Date();
-  trialEnd.setDate(trialEnd.getDate() + 30); // renewal date
-  const renewFmt = new Intl.DateTimeFormat("ar-SA-u-ca-gregory-nu-latn", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(trialEnd);
-
-  return (
-    <>
-      <div className="grid grid-cols-1 md:grid-cols-[1fr_1.1fr]">
-        {/* LEFT — timeline */}
-        <div className="md:order-2 relative">
-          <button
-            type="button"
-            onClick={onSkip}
-            className="absolute top-5 left-6 z-10 text-h5 text-text-muted hover:text-heading underline underline-offset-4 cursor-pointer transition"
-          >
-            تخطى
-          </button>
-          <TrialTimeline />
-        </div>
-
-        {/* RIGHT — payment form */}
-        <section className="md:order-1 p-7 sm:p-9 lg:p-10 bg-white relative">
-          <BackChip onClick={onBack} />
-
-          {/* Title on its own row (the encryption badge moved down to sit
-              opposite the card-brand logos). */}
-          <h2 className="text-h2 font-bold text-heading mb-3 pt-2">الدفع</h2>
-
-          {/* Card brand row + encryption badge — start (right in RTL) = badge,
-              end (left in RTL) = logos. Aligns the trust badge with the brand
-              logos visually on the same horizontal line. */}
-          <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
-            <span className="inline-flex items-center gap-1.5 text-h5 text-text-muted">
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} aria-hidden="true">
-                <rect x="4" y="10" width="16" height="10" rx="2" />
-                <path d="M8 10V7a4 4 0 1 1 8 0v3" strokeLinecap="round" />
-              </svg>
-              بياناتك مشفّرة بالكامل
-            </span>
-            <div className="flex items-center gap-2">
-              {/* eslint-disable @next/next/no-img-element */}
-              <img src="/assets/Mada.png" alt="Mada" className="h-6 w-auto object-contain" />
-              <img src="/assets/express.png" alt="American Express" className="h-6 w-auto object-contain" />
-              <img src="/assets/Mastercard.png" alt="Mastercard" className="h-6 w-auto object-contain" />
-              <img src="/assets/visa.png" alt="Visa" className="h-6 w-auto object-contain" />
-              {/* eslint-enable @next/next/no-img-element */}
-            </div>
-          </div>
-
-          {/* Card number — floating label moves to the LEFT so the brand
-              icon can sit on the RIGHT (RTL start) where the user requested. */}
-          <div className="float-input relative h-[56px] bg-white border-[1.5px] border-[#DFDCE0] focus-within:border-primary rounded-xl mb-3">
-            <input
-              id="card-number"
-              type="text"
-              inputMode="numeric"
-              autoComplete="cc-number"
-              dir="ltr"
-              placeholder=" "
-              value={card}
-              onChange={(e) => setCard(formatCardNumber(e.target.value))}
-              maxLength={cardMaxLength(brand)}
-              className="peer w-full h-full bg-transparent text-h4 text-heading pt-5 pb-1 ps-4 pe-14 outline-none rounded-xl font-mono tracking-wider"
-            />
-            <label
-              htmlFor="card-number"
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-h5 text-text-muted pointer-events-none transition-all
-                peer-focus:top-2 peer-focus:translate-y-0 peer-focus:text-[11px] peer-focus:text-primary peer-focus:font-medium
-                peer-[:not(:placeholder-shown)]:top-2 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[11px] peer-[:not(:placeholder-shown)]:text-primary peer-[:not(:placeholder-shown)]:font-medium"
-            >
-              رقم البطاقة
-            </label>
-            <span className="absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none">
-              {brand ? <CardBrandIcon brand={brand} /> : <CreditCardIcon />}
-            </span>
-          </div>
-
-          {/* Expiry + CVV */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="float-input relative h-[56px] bg-white border-[1.5px] border-[#DFDCE0] focus-within:border-primary rounded-xl">
-              <input
-                id="card-exp"
-                type="text"
-                inputMode="numeric"
-                autoComplete="cc-exp"
-                dir="ltr"
-                placeholder=" "
-                value={exp}
-                onChange={(e) => setExp(formatExpiry(e.target.value))}
-                maxLength={5}
-                className="peer w-full h-full bg-transparent text-h4 text-heading pt-5 pb-1 px-4 outline-none rounded-xl"
-              />
-              <label
-                htmlFor="card-exp"
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-h5 text-text-muted pointer-events-none transition-all
-                  peer-focus:top-2 peer-focus:translate-y-0 peer-focus:text-[11px] peer-focus:text-primary peer-focus:font-medium
-                  peer-[:not(:placeholder-shown)]:top-2 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[11px] peer-[:not(:placeholder-shown)]:text-primary peer-[:not(:placeholder-shown)]:font-medium"
-              >
-                تاريخ الانتهاء
-              </label>
-            </div>
-            <div className="float-input relative h-[56px] bg-white border-[1.5px] border-[#DFDCE0] focus-within:border-primary rounded-xl">
-              <input
-                id="card-cvv"
-                type="text"
-                inputMode="numeric"
-                autoComplete="cc-csc"
-                dir="ltr"
-                placeholder=" "
-                value={cvv}
-                onChange={(e) =>
-                  setCvv(
-                    e.target.value
-                      .replace(/\D/g, "")
-                      .slice(0, cvvMaxLength(brand))
-                  )
-                }
-                maxLength={cvvMaxLength(brand)}
-                className="peer w-full h-full bg-transparent text-h4 text-heading pt-5 pb-1 px-4 outline-none rounded-xl"
-              />
-              <label
-                htmlFor="card-cvv"
-                className="absolute right-4 top-1/2 -translate-y-1/2 text-h5 text-text-muted pointer-events-none transition-all
-                  peer-focus:top-2 peer-focus:translate-y-0 peer-focus:text-[11px] peer-focus:text-primary peer-focus:font-medium
-                  peer-[:not(:placeholder-shown)]:top-2 peer-[:not(:placeholder-shown)]:translate-y-0 peer-[:not(:placeholder-shown)]:text-[11px] peer-[:not(:placeholder-shown)]:text-primary peer-[:not(:placeholder-shown)]:font-medium"
-              >
-                كود التحقّق
-              </label>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={onContinue}
-            className="w-full h-[52px] mt-5 bg-primary text-white text-h4 font-medium rounded-xl hover:bg-primary-hover cursor-pointer transition btn-premium"
-          >
-            ابدأ تجربتك بـ <span dir="ltr">$1</span>
-          </button>
-
-          <p className="text-h5 text-text-muted leading-relaxed mt-3">
-            سيتم تجديد اشتراكك تلقائيًا للخطّة{" "}
-            <span className="text-heading font-medium">{planName}</span> بتاريخ{" "}
-            <span className="text-heading font-medium">{renewFmt}</span> بقيمة{" "}
-            <span dir="ltr" className="text-heading font-medium">
-              ${renewalAmount.toLocaleString("en-US")}
-            </span>
-            {" "}
-            {billing === "yearly" ? "/ سنويًا" : "/ شهريًا"}
-            {addonOn && (
-              <>
-                {" "}
-                + <span dir="ltr" className="text-heading font-medium">$99</span>{" "}
-                مقابل الخدمة الإضافية
-              </>
-            )}
-            .
-          </p>
-        </section>
-      </div>
-
-      {/* $99 add-on row — full-width below the 2-column block.
-          Layout (RTL, top → bottom):
-            • Header  : [eyebrow pill on right]  [gift line on left]
-            • Body    : description (right-aligned, full width)
-            • Action  : [☑ تأكيد الاشتراك بالخدمة  →  right]   [ $99 →  left]
-            • Footer  : "الأماكن محدودة..." right-aligned below the action row */}
-      <div className="border-t border-[#DFDCE0] bg-gradient-to-b from-[#FFFCEC] to-[#FFFEF7] px-7 sm:px-9 lg:px-10 py-5">
-        {/* Header row */}
-        <div className="flex items-center justify-between gap-2 mb-2 flex-wrap">
-          <span className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-[#A87F00] bg-white border border-[#E5C870] rounded-full px-3 py-1">
-            خدمة إضافية — لمرة واحدة
-          </span>
-          <span className="inline-flex items-center gap-1.5 text-h5 text-[#A87F00] font-medium">
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M20 12v10H4V12M2 7h20v5H2zM12 22V7M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7zM12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" stroke="currentColor" strokeWidth="1.5" fill="none" />
-            </svg>
-            ستحصل على شهرين مجاناً
-          </span>
-        </div>
-
-        {/* Body description */}
-        <p className="text-h5 text-heading leading-relaxed mb-4 text-start">
-          بناء وتجهيز أكاديميتك كاملة: دومين، هوية بصرية، أول كورس، صفحة هبوط، وربط الدفع.
-        </p>
-
-        {/* Action row: checkbox first (right in RTL) + label after it,
-            $99 on the opposite (left) side. */}
-        <div className="flex items-center justify-between gap-3 mb-1.5 flex-wrap">
-          <label className="inline-flex items-center gap-2.5 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={addonOn}
-              onChange={(e) => setAddonOn(e.target.checked)}
-              className="w-5 h-5 accent-primary cursor-pointer"
-            />
-            <span className="text-h4 text-heading font-medium">
-              تأكيد الاشتراك بالخدمة
-            </span>
-          </label>
-          <span className="text-h2 font-bold text-heading">
-            <span dir="ltr">$99</span>
-          </span>
-        </div>
-
-        {/* Footer caveat — right-aligned below the action row */}
-        <p className="text-h5 text-text-muted text-start">
-          الأماكن محدودة: 10–15 عميل أسبوعياً
-        </p>
-      </div>
-    </>
-  );
 }
 
 function CreditCardIcon() {
@@ -1785,13 +1762,8 @@ function ThankyouStep({
   /** "لنجهّز منصتك" → onboarding questionnaire. */
   onContinue: () => void;
 }) {
-  const renew = new Date();
-  renew.setDate(renew.getDate() + 33); // 3-day trial + 30-day month
-  const renewFmt = new Intl.DateTimeFormat("ar-SA-u-ca-gregory-nu-latn", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  }).format(renew);
+  // Same schedule as checkout: trial + 1 month (+2 months with add-on).
+  const renewFmt = longDateFmt.format(getCheckoutSchedule(addonOn).renewDate);
 
   // Fire confetti when the step mounts.
   useEffect(() => {
@@ -1834,24 +1806,14 @@ function ThankyouStep({
       </p>
       <p className="text-h5 text-text-muted leading-relaxed mb-7">
         سيتم تجديد الاشتراك تلقائياً بتاريخ{" "}
-        <span className="text-heading font-medium">{renewFmt}</span> بسعر{" "}
+        <span className="text-heading font-medium whitespace-nowrap">{renewFmt}</span> بسعر{" "}
         <span className="text-heading font-medium" dir="ltr">
           ${renewalAmount.toLocaleString("en-US")}
-        </span>
-        {addonOn && (
-          <>
-            {" "}
-            +{" "}
-            <span className="text-heading font-medium" dir="ltr">
-              $99
-            </span>{" "}
-            بإجمالي{" "}
-            <span className="text-heading font-semibold" dir="ltr">
-              ${(renewalAmount + 99).toLocaleString("en-US")}
-            </span>
-          </>
-        )}{" "}
-        {billing === "yearly" ? "/ سنويًا" : "/ شهريًا"} بعد انتهاء الفترة التجريبية.
+        </span>{" "}
+        {billing === "yearly" ? "/ سنويًا" : "/ شهريًا"}
+        {addonOn
+          ? " بعد انتهاء الشهر الأول والشهرين الإضافيين من الخدمة الإضافية."
+          : " بعد انتهاء الشهر الأول."}
       </p>
       <button
         type="button"
